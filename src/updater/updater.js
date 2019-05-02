@@ -193,6 +193,9 @@ export function createUpdater() {
 
   let updates = 0
   let stateOnUpdate = 0
+
+  // it is unlikely that the NOOP_BATCH used in some renderers will work here.
+  // @TODO investigate options for non-batched support
   let batch = getBatch()
   /*
     startUpdate will attempt to start a new update if possible
