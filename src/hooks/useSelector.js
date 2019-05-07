@@ -1,7 +1,7 @@
 import React, {
   useContext,
   useRef,
-  useMemo,
+  useReducer,
   useCallback,
   useLayoutEffect,
   useEffect
@@ -73,63 +73,35 @@ export function makeUseSelector(Context) {
     // this queueState is the latest state the queue knows about
     let queueState = queue.state
 
-    // if this render commits ensure node captures state it rendered with
-    // this needs to run before commit phase finishes so we can skip this
-    // node during an update work loop if it was already rendered as part of
-    // another update
+    let stateRef = useRef(queueState)
     useIsomorphicLayoutEffect(() => {
-      node.state = queueState
+      stateRef.current = queueState
     }, [queueState])
 
-    // establish trigger for re-renders when selected state changes
-    // capture memoized values if updater produces new state
-    let [[memoSlice, memoSelect, memoState], setMemoSelection] = React.useState(
-      []
+    let reducer = useCallback(
+      (lastSlice, nextState) => {
+        if (stateRef.current !== nextState) {
+          console.log('state is new, running selector', select(nextState))
+          return select(nextState)
+        }
+        console.log('state is same, returning lastSlice', lastSlice)
+        return lastSlice
+      },
+      [select]
     )
 
     // compute slice if necessary
-    let slice = useMemo(() => {
-      if (queueState === memoState && select === memoSelect) {
-        return memoSlice
-      }
-      return select(queueState)
-    }, [node, select, queueState, memoSlice, memoSelect, memoState])
-
-    // expose a ref to last slice for listener to bail out from
-    let lastSliceRef = useRef(null)
-    // if this render commits ensure the latest slice is updated
-    // @TODO does useEffect work here. does react guarantee tha that effects
-    // flush before the next update to this component is processed?
-    useIsomorphicLayoutEffect(() => {
-      lastSliceRef.current = slice
-    }, [slice])
-
-    /*
-      the update function is called by the updater to potentially trigger an
-      update when the selected state changes. it dereferences the update state
-      from the queue directly because we want to capture new states the component
-      has not yet seen.
-
-      @TODO this function can easily be memoized with useCallback. however if
-      there is no overhead to refreshing it on every render we can decrease
-      complexity and load on hooks by recreating it on every render
-    */
-    let update = () => {
-      let slice = select(queue.state)
-      if (lastSliceRef.current !== slice) {
-        context.updating()
-        setMemoSelection([slice, select, queue.state])
-      } else {
-        // since this node won't update we can set the node.state now
-        node.state = queue.state
-      }
-    }
+    let [slice, dispatch] = useReducer(reducer, null, () => select(queueState))
 
     // update listener for next update and nullify on unmount
     useIsomorphicLayoutEffect(() => {
-      updateRef.current = update
+      updateRef.current = state => {
+        console.log('updating node')
+        // context.updating(node)
+        dispatch(state)
+      }
       return () => (updateRef.current = null)
-    })
+    }, [])
 
     return slice
   }

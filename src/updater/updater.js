@@ -268,7 +268,7 @@ export function createUpdater() {
         // be set to true
         try {
           // try the update function
-          nextNode.update.current()
+          nextNode.update.current(queue.state)
         } catch (e) {
           // catch errors to be rethrown later without interrupting the update
           // from continuing. @TODO this likely should be changed so that the
@@ -377,7 +377,6 @@ export function createUpdater() {
     let node = {
       update: update,
       queue: queue,
-      state: queue.state,
       nextNode: null
     }
 
